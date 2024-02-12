@@ -1,0 +1,59 @@
+# Configuration settings for simulation
+sim:
+  params:
+    fc_GHz: 3.5
+    h_UT: 2.0
+    h_BS: 20.0
+  show_params: true
+  rng_seed: 0
+  until: 100.0
+
+# Configuration settings for cell
+cell:
+  interval: 10.0
+  bw_MHz: 10.0
+  n_subbands: 1
+  xyz: null
+  h_BS: 20.0
+  power_dBm: 30.0
+  MIMO_gain_dB: 0.0
+  pattern: null
+  f_callback: null
+  f_callback_kwargs: {}
+  verbosity: 0
+
+# Configuration settings for user equipment (UE)
+ue:
+  xyz: null
+  reporting_interval: 1.0
+  pathloss_model: null
+  h_UT: 2.0
+  f_callback: null
+  f_callback_kwargs: {}
+  verbosity: 0
+
+# Configuration settings for the scenario
+scenario:
+  func: null
+  interval: 1.0
+  verbosity: 0
+
+# Configuration settings for logger
+logger:
+  func: null
+  header: ""
+  f: "stdout"
+  logging_interval: 10
+  np_array_to_str: null
+
+# Configuration settings for Mobility Management Entity (MME)
+mme:
+  interval: 10.0
+  strategy: "strongest_cell_simple_pathloss_model"
+  anti_pingpong: 30.0
+  verbosity: 0
+
+# Configuration settings for Radio Interface Controller (RIC)
+ric:
+  interval: 10
+  verbosity: 0

@@ -1,0 +1,29 @@
+=====================
+RAN Network Functions
+=====================
+[Data]
+Retransmission Buffer
+Numbering
+Header compression
+Ciphering
+Add PDCP header
+Transmission buffer
+RLC segmentation
+RLC retransmission buffer
+RLC control
+Add RLC header
+Controller Scheduler
+MAC multiplexing
+HARQ
+DL-SCH data transfer
+CRC attachment
+Coding and block segmentation
+Rate matching
+Scrambling
+Modulation
+Layer mapping
+Precoding
+Resource Element Mapping
+Beamforming Port Exp
+iFFT
+Analogue Conversion
