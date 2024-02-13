@@ -58,19 +58,32 @@ from AIMM_simulator import MME as AIMM_MME
 from AIMM_simulator import RIC as AIMM_RIC
 from AIMM_simulator import np_array_to_str, to_dB
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+
+    def disable(self):
+        self.HEADER = ''
+        self.OKBLUE = ''
+        self.OKGREEN = ''
+        self.WARNING = ''
+        self.FAIL = ''
+        self.ENDC = ''
 
 
 class ConfigLoader():
     """
     Loads the configuration from a JSON file for different elements of the simulator.
     """
-    id_iter=itertools_count()
+
     def __init__(self):
-        print('INIT of ConfigLoader')
-        self.guid = id(self)
+        # print('INIT of ConfigLoader')
         self.class_name = self.__class__.__name__
-        self.idx = next(ConfigLoader.id_iter)
-        self.label = f'{self.class_name}[{self.idx}]'
+
 
     @staticmethod
     def get_argument_parser():
@@ -108,9 +121,7 @@ class Experiment():
     Parameters are read in from a JSON file and include details such as (but not limited to):  Experiment name, number of seeds, how many Sim() objects to run at the same time, Scenario to apply, where to put output files, plotting options, statistical analysis options etc.
     """
     def __init__(self, config):
-        print('INIT of Experiment')
-        self.guid=id(self)
-        self.class_name = self.__class__.__name__
+        # print('INIT of Experiment')
         self.config = config
         self.pool = []
     
@@ -152,78 +163,31 @@ class Experiment():
             print('Simulation discarded.')
 
 
-
 class Sim(AIMM_Sim):
     """
     AIMMee Sim: Defines the simulation environment and runs the simulation.
     """
-    id_iter = itertools_count()
+    id=0
     def __init__(self, *args, **kwargs):
-        print('INIT of Sim(AIMMee)')
-        self.guid = id(self)
-        self.class_name = self.__class__.__name__
-        self.idx = next(Sim.id_iter)
-        self.label = f'{self.class_name}[{self.idx}]'
+        # print('INIT of Sim(AIMMee)')
+        self.id= Sim.id
+        Sim.id+=1
+        self.label = f'{self.__class__.__name__}[{self.id}]'
         self.origin = np.array([0.,0.,0.])
-        print(f'Sim[{self.idx}]: Initialised.')
-        self.set_sim_topology()
-        self.set_guid_map()
+        print(f'Sim[{self.id}]: Initialised.')
         self.raps=[]
         self.rus=[]
         self.rrhs=[]
-        if 'until' in kwargs:
-            self.until:int or float = kwargs.pop('until')
-        else:
-            logging.warning(f'Sim[{self.idx}]: No "until" parameter specified. Defaulting to 100.0.')
-            self.until = 100.0
+        self.topology = {}
         super().__init__(*args, **kwargs) # This one calls the INIT of AIMM_Sim
 
-    def set_sim_topology(self):
-        """
-        Makes the simulation topology.
-        """
-        if not hasattr(self, 'topology'):
-            self.topology = {}
-            print(f'Sim[{self.idx}]: Topology set.')
 
-    def set_guid_map(self):
-        """
-        Makes the guid map.
-        """
-        if not hasattr(self, 'guid_map'):
-            self.guid_map = {}
-            print(f'Sim[{self.idx}]: GUID map set.')
 
     def get_sim_topology(self):
         """
         Returns the simulation topology.
         """
         return self.topology
-    
-    def get_object_from_guid(self, guid):
-        """
-        Returns the object from the given GUID.
-        """
-        if not isinstance(guid, int):
-            raise ValueError(f'GUID {guid} must be an integer.')
-        if guid not in self.sim.guid_map:
-            raise ValueError(f'GUID {guid} not found in simulation.')
-        return self.sim.guid_map[guid]
-
-    def get_link_lists(self, sim_objs:list):
-        """
-        Returns a list of lists, containing the GUIDs of linked objects for the given sim_objs.
-        """
-        assert isinstance(sim_objs, list)
-        for sim_obj in sim_objs:
-            assert isinstance(sim_obj, SimObject)
-        return [sim_obj.sim.topology[sim_obj.class_name][sim_obj.guid] for sim_obj in sim_objs]
-    
-    def set_object_id_map(self, other):
-        """
-        Maps the object id's to the object class names and instance index.
-        """
-        assert isinstance(other, SimObject)
 
     def get_origin(self):
         """
@@ -275,14 +239,14 @@ class Sim(AIMM_Sim):
     ##################################################
 
 
-    def confirm_exe(self):
+    def confirm_exe(self,until=10.0):
         """
         Prompts the user to confirm the simulation parameters.
         """
         pprint(self.topology)
         # If user responds Y or y or Yes or yes, then add to the simulation pool.
         if input('Run simulation? [Y/N] ').lower() in ['y','yes']:
-            self.run(until=self.until)
+            self.run(until)
         else:
             print('Simulation aborted.')
     
@@ -293,12 +257,12 @@ class SimObject():
     """
     Defines the common attributes of all objects in the simulation.
     """
-    id_iter = itertools_count()
+    # id=0
     def __init__(self, sim:Sim):
-        self.guid = id(self)
+        # self.id= SimObject.id
+        # SimObject.id +=1
         self.class_name = self.__class__.__name__
-        self.idx = next(self.id_iter)
-        self.label = f'{self.class_name}[{self.idx}]'
+        self.label = f'{self.class_name}[{self.id}]'
         self.sim = sim
         self.add_to_sim(sim)
         if hasattr(self, 'interval'):
@@ -308,21 +272,14 @@ class SimObject():
         else:
             self.interval = 0.0
 
-    def get_cls_name(self):
-        return self.__class__.__name__
-
-    def get_plural(self, other):
-        return str(f'{other}s')
-
     def add_to_sim(self,sim:Sim):
         """
-        Adds this object to the simulation (topology + guid map).
+        Adds this object to the simulation topology.
         """
         if not isinstance(sim, Sim):
             raise ValueError("`sim` argument MUST be a Sim() object")
-        sim.topology.setdefault(self.class_name, {}).setdefault(self.guid, [])
-        sim.guid_map.setdefault(self.guid, self)
-        print(f'Sim[{sim.idx}]: Added {self.label} to {sim.label}.')
+        sim.topology.setdefault(self.class_name, {}).setdefault(self.label, [])
+        print(f'Sim[{sim.id}]: Added {self.label} to {sim.label}.')
 
 
     def register_link(self, other):
@@ -334,18 +291,18 @@ class SimObject():
         if not isinstance(self.sim, Sim):
             raise ValueError("`self.sim` MUST be a Sim() object")
         # Get the topology dictionary for objects
-        self_links_list = self.sim.topology[self.class_name][self.guid]
-        other_links_list = other.sim.topology[other.class_name][other.guid]
+        self_links_list = self.sim.topology[self.class_name][self.label]
+        other_links_list = other.sim.topology[other.class_name][other.label]
         # Add `other` object to own list of attached objects
-        if other.guid not in self_links_list:
-            self_links_list.append(other.guid)
+        if other.id not in self_links_list:
+            self_links_list.append(other.id)
         else:
-            print(f'{self.label}: {other.label} already exists in {self.label} topology list.')
+            print(f'{bcolors.WARNING}{self.label}: {other.label} already exists in {self.label} topology list.{bcolors.ENDC}')
         # Add `self` object to other's list of attached objects
-        if self.guid not in other_links_list:
-            other_links_list.append(self.guid)
+        if self.id not in other_links_list:
+            other_links_list.append(self.id)
         else:
-            print(f'{self.label}: {self.label} already exists in {other.label} topology list.')
+            print(f'{bcolors.WARNING}{self.label}: {self.label} already exists in {other.label} topology list.{bcolors.ENDC}')
 
 
     def deregister_link(self, other):
@@ -355,14 +312,14 @@ class SimObject():
         assert isinstance(other, SimObject)
 
         # Remove the other object from this object's list in the topology dictionary and vice versa
-        self_links = self._sim.topology[self.class_name][self.guid]
-        other_links = other._sim.topology[other.class_name][other.guid]
-        if other.guid in self_links:
-            self_links.remove(other.guid)
+        self_links = self._sim.topology[self.class_name][self.label]
+        other_links = other._sim.topology[other.class_name][other.label]
+        if other.id in self_links:
+            self_links.remove(other.id)
         else:
             print(f'{self.label}: {other.label} does not exist in {self.label} topology list.')
-        if self._guid in other_links:
-            other_links.remove(self.guid)
+        if self._id in other_links:
+            other_links.remove(self.id)
         else:
             print(f'{self.label}: {self.label} does not exist in {other.label} topology list.')
 
@@ -372,7 +329,7 @@ class SimObject():
         Returns the energy model of the object.
         """
         if self._power_model is None:
-            print(f'{self.__class__.__name__}[{self.idx}]: No energy model found.')
+            print(f'{bcolors.WARNING}{self.label}: No energy model found.{bcolors.ENDC}')
             return None
         else:
             return self._power_model
@@ -385,10 +342,10 @@ class SimObject():
         if not isinstance(new_power_model, (int, float, Callable)):
             raise ValueError("power_model must be a constant or a function")
         self._power_model = new_power_model
-        print(f'{self.__class__.__name__}[{self.idx}]: Power model set to {self.power_model.__repr__()}')
+        print(f'{bcolors.OKBLUE}{self.label}: Power model set to {self.power_model.__repr__()}{bcolors.ENDC}')
 
     def __repr__(self):
-        return f'{self.class_name}(idx={self.idx}, guid={self.guid})'
+        return f'{self.class_name}(id={self.id})'
 
 # END class SimObject
 
@@ -397,26 +354,28 @@ class AIMMeeCell(AIMM_Cell, SimObject):
     """
     Defines the cell object in the simulation.
     """
-    idx=itertools_count()
+    id=0
     def __init__(self, sim, *args, **kwargs):
-        print('INIT of Cell(AIMMee)')
-        self.idx = next(AIMMeeCell.id_iter)
+        # print('INIT of Cell(AIMMee)')
+        self.id= AIMMeeCell.id
+        AIMMeeCell.id +=1
         self.sim = sim
-        self.label = f'{self.__class__.__name__}[{self.idx}]'
+        self.label = f'{self.__class__.__name__}[{self.id}]'
         self.radius = 0.0
         super(AIMM_Cell, self).__init__(self.sim) # This one calls the INIT of SimObject
         super().__init__(self.sim, **kwargs) # This one calls the INIT of AIMM_Cell
 
     def __repr__(self):
-        return f'Cell(idx={self.idx}, xyz={self.xyz}, radius={self.radius})'
+        return f'Cell(id={self.id}, xyz={self.xyz}, radius={self.radius})'
 # END class Cell
 
 
 class RadioAccessPoint(SimObject):
-    idx=itertools_count()
+    id=0
     def __init__(self, sim:Sim, cell:AIMMeeCell, at_cell_centre:bool=True, interval:float=1.0, verbosity:int=0, **kwargs):
-        print('INIT of RadioAccessPoint')
-        self.idx = next(RadioAccessPoint.id_iter)
+        # print('INIT of RadioAccessPoint')
+        self.id= RadioAccessPoint.id
+        RadioAccessPoint.id +=1
         self.sim = sim
         self.cell = cell
         self.interval = interval
@@ -431,9 +390,9 @@ class RadioAccessPoint(SimObject):
         self.xyz[2] = 0.0 # RadioAccessPoint is always on the ground
         self.verbosity = verbosity
         if self.verbosity > 0:
-            print(f'Cell[{self.cell.idx}]: position={self.cell.get_xyz()}')
-            print(f'Cell[{self.cell.idx}]: radius={self.cell.radius}')
-            print(f'RadioAccessPoint[{self.idx}]: xyz={self.xyz}')
+            print(f'Cell[{self.cell.id}]: position={self.cell.get_xyz()}')
+            print(f'Cell[{self.cell.id}]: radius={self.cell.radius}')
+            print(f'RadioAccessPoint[{self.id}]: xyz={self.xyz}')
 
     def make_RadioUnit(self, **kwargs):
         """
@@ -454,10 +413,11 @@ class RadioAccessPoint(SimObject):
 
 
 class RadioUnit(SimObject):
-    idx=itertools_count()
+    id=0
     def __init__(self, sim:Sim, cell:AIMMeeCell, rap:RadioAccessPoint, du=None, interval:float=1.0, verbosity:int=0, **kwargs):
-        print('INIT of RadioUnit')
-        self.idx = next(RadioUnit.id_iter)
+        # print('INIT of RadioUnit')
+        self.id= RadioUnit.id
+        RadioUnit.id +=1
         self.sim = sim
         self.cell = cell
         self.verbosity = verbosity
@@ -483,10 +443,11 @@ class RadioUnit(SimObject):
 # END class RadioUnit
 
 class DistributedUnit(SimObject):
-    idx=itertools_count()
+    id=0
     def __init__(self, sim:Sim):
-        print('INIT of DistributedUnit')
-        self.idx = next(DistributedUnit.id_iter)
+        # print('INIT of DistributedUnit')
+        self.id=DistributedUnit.id
+        DistributedUnit.id +=1
         self.sim = sim
         super().__init__(sim=self.sim)
         self.power_model = self.example_DU_power_model()
@@ -524,11 +485,12 @@ class DistributedUnit(SimObject):
 
 
 class CentralisedUnit(SimObject):
-    idx=itertools_count()
+    id=0
     def __init__(self,
                  sim:Sim):
-        print('INIT of CentralisedUnit')
-        self.idx = next(CentralisedUnit.id_iter)
+        # print('INIT of CentralisedUnit')
+        self.id= CentralisedUnit.id
+        CentralisedUnit.id +=1
         self.sim = sim
         self.du = None
         super().__init__(sim=self.sim)
@@ -560,20 +522,24 @@ class CentralisedUnit(SimObject):
 
 
 class RemoteRadioHead(SimObject):
-    idx=itertools_count()
     # RF ports are where the antennas are connected
     # Fronthaul ports are where the DU is connected
+    id=0
     def __init__(self,
                  sim:Sim, 
                  rap:RadioAccessPoint,
                  ru:RadioUnit=None,
                  du:DistributedUnit=None,
                  n_rf_ports:int=2,
-                 fronthaul_ports:dict={'n_ports':2, 'protocol':'CPRI', 'data_rate_Gbps_max':10.0},
+                 fronthaul_ports:dict={'n_ports':2, 
+                                       'protocol':'CPRI', 
+                                       'data_rate_Gbps_max':10.0
+                                       },
                  verbosity:int=0,
                  **kwargs):
-        print('INIT of RemoteRadioHead')
-        self.idx = next(RemoteRadioHead.id_iter)
+        # print('INIT of RemoteRadioHead')
+        self.id= RemoteRadioHead.id; 
+        RemoteRadioHead.id +=1
         self.sim = sim
         self.cell = None
         self.rap = rap
@@ -664,8 +630,7 @@ class AntennaPanel(SimObject):
     # FIXME - when initialised, the Antenna Panel MUST be at a RadioAccessPoint
     # FIXME - inherit the radiation pattern from Cell
     # FIXME - should have a down-tilt angle
-
-    idx=itertools_count()
+    id=0
     def __init__(self, 
                  sim:Sim,
                  rrh:RemoteRadioHead,
@@ -674,7 +639,9 @@ class AntennaPanel(SimObject):
                  elevation:float=0.0, 
                  pattern=None,):
                 
-                print('INIT of AntennaPanel')
+                # print('INIT of AntennaPanel')
+                self.id= AntennaPanel.id
+                AntennaPanel.id +=1
                 self.sim=sim
                 self.xyz=xyz
                 self.azimuth=azimuth
@@ -697,45 +664,45 @@ class AIMMeeUE(AIMM_UE, SimObject):
     User Equipment (UE): 
     --------------------
     """
-    idx=itertools_count()
+    id=0
     def __init__(self, sim:Sim, *args,**kwargs):
-        print('INIT of AIMMeeUE')
-        self.guid = id(self)
-        self.idx = next(AIMMeeUE.id_iter)
+        # print('INIT of AIMMeeUE')
+        self.id= AIMMeeUE.id; 
+        AIMMeeUE.id+= 1
         self.sim = sim
-        self.last_cell_guid = None
-        self.current_cell_guid = None
+        self.last_cell_id = None
+        self.current_cell_id = None
         super(AIMM_UE, self).__init__(self.sim) # This one calls the INIT of SimObject
         super().__init__(self.sim, *args, **kwargs) # This one calls the INIT of AIMM_UE
 
-    def update_cell_guid(self):
+    def update_cell_id(self):
         """
-        Updates the cell GUID.
+        Updates the cell ID.
         """
-        if self.serving_cell.guid == self.current_cell_guid:
+        if self.serving_cell.label == self.current_cell_id:
             return
-        self.last_cell_guid = self.current_cell_guid
-        self.current_cell_guid = self.serving_cell.guid
+        self.last_cell_id = self.current_cell_id
+        self.current_cell_id = self.serving_cell.label
 
     def update_ue_topology(self):
         """
         Updates the UE topology.
         """
-        if self.guid == None:
+        if self.id == None:
             return
-        if self.last_cell_guid != self.current_cell_guid:
+        if self.last_cell_id != self.current_cell_id:
             # Remove the UE from the last cell
-            if self.last_cell_guid is not None:
-                while self.guid in self.sim.topology['AIMMeeCell'][self.last_cell_guid]:
-                    self.sim.topology['AIMMeeCell'][self.last_cell_guid].remove(self.guid)
-                while self.last_cell_guid in self.sim.topology['AIMMeeUE'][self.guid]:
-                    self.sim.topology['AIMMeeUE'][self.guid].remove(self.last_cell_guid)
+            if self.last_cell_id is not None:
+                while self.label in self.sim.topology['AIMMeeCell'][self.last_cell_id]:
+                    self.sim.topology['AIMMeeCell'][self.last_cell_id].remove(self.label)
+                while self.last_cell_id in self.sim.topology['AIMMeeUE'][self.label]:
+                    self.sim.topology['AIMMeeUE'][self.label].remove(self.last_cell_id)
             # Add the UE to the current cell
-            if self.guid not in self.sim.topology['AIMMeeCell'][self.current_cell_guid]:
-                self.sim.topology['AIMMeeCell'][self.current_cell_guid].append(self.guid)
+            if self.label not in self.sim.topology['AIMMeeCell'][self.current_cell_id]:
+                self.sim.topology['AIMMeeCell'][self.current_cell_id].append(self.label)
             # Update the UE's serving cell in the topology
-            if self.current_cell_guid not in self.sim.topology['AIMMeeUE'][self.guid]:
-                self.sim.topology['AIMMeeUE'][self.guid].append(self.current_cell_guid)
+            if self.current_cell_id not in self.sim.topology['AIMMeeUE'][self.label]:
+                self.sim.topology['AIMMeeUE'][self.label].append(self.current_cell_id)
     
     def loop(s):
         ' Main loop of UE class '
@@ -744,7 +711,7 @@ class AIMMeeUE(AIMM_UE, SimObject):
             stdout.flush()
         while True:
             if s.f_callback is not None: s.f_callback(s,**s.f_callback_kwargs)
-            s.update_cell_guid()
+            s.update_cell_id()
             s.update_ue_topology()
             s.send_rsrp_reports()
             s.send_subband_cqi_report()
@@ -756,12 +723,12 @@ class AIMMeeLogger(AIMM_Logger):
     """
     AIMMee Logger: Accesses the AIMM default logger via super().
     """
-    id_iter = itertools_count()
+    id=0
     def __init__(self, *args, **kwargs):
-        print('INIT of AIMMeeLogger')
-        self.guid = id(self)
-        self.idx = next(AIMMeeLogger.id_iter)
-        self.label = f'{self.__class__.__name__}[{self.idx}]'
+        # print('INIT of AIMMeeLogger')
+        self.id= AIMMeeLogger.id
+        AIMMeeLogger.id += 1
+        self.label = f'{self.__class__.__name__}[{self.id}]'
         super().__init__(*args, **kwargs)
 # END class AIMMeeLogger
 
@@ -805,7 +772,7 @@ class MyLogger(AIMMeeLogger):
         yield s.sim.env.timeout(s.logging_interval)
 
 def test_01(ncells=4,nues=9,n_subbands=2,until=10.0):
-    sim=Sim(until=until)
+    sim=Sim()
     for i in range(ncells):
       sim.make_cell(n_subbands=n_subbands,MIMO_gain_dB=3.0,verbosity=0)
       cell=sim.cells[-1]
@@ -826,7 +793,7 @@ def test_01(ncells=4,nues=9,n_subbands=2,until=10.0):
     sim.add_logger(logger)
     sim.add_scenario(scenario)
     sim.add_ric(ric)
-    sim.confirm_exe()
+    sim.confirm_exe(until=until)
     print('Exiting...')
 
 
